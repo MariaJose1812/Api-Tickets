@@ -3,6 +3,7 @@ const cors = require("cors");
 const axios = require("axios");
 const sql = require("mssql");
 require("dotenv").config();
+const { enviarConfirmacionTicket, enviarNotificacionSoporte, verificarConexion } = require("./utils/emailService");
 
 const app = express();
 app.use(cors());
@@ -84,6 +85,30 @@ app.post("/api/tickets", async (req, res) => {
     const nombroDepartamento = deptResult.recordset.length > 0 
       ? deptResult.recordset[0].NomDep 
       : "Sin especificar";
+
+    // ✉️ ENVIAR CORREOS AL USUARIO Y SOPORTE
+    try {
+      // Enviar correo al usuario
+      await enviarConfirmacionTicket(
+        correoContacto,
+        idTicket,
+        nombreContacto,
+        descripcionProblema,
+        nombroDepartamento
+      );
+
+      // Enviar correo al equipo de soporte
+      await enviarNotificacionSoporte(
+        idTicket,
+        nombreContacto,
+        correoContacto,
+        descripcionProblema,
+        nombroDepartamento
+      );
+    } catch (emailError) {
+      console.warn(`⚠️ Advertencia: Error al enviar correos:`, emailError.message);
+      // Continuamos sin fallar, ya que el ticket se guardó correctamente
+    }
 
     // Enviar a N8N
     try {
@@ -206,7 +231,10 @@ app.get("/api/departamentos", async (req, res) => {
 
 // INICIAR SERVIDOR 
 const PORT = 3000;
-conectarBD().then(() => {
+conectarBD().then(async () => {
+  // Verificar configuración de correo
+  await verificarConexion();
+  
   app.listen(PORT, () => {
     console.log(`✓ API REST corriendo en http://localhost:${PORT}`);
     console.log(`✓ Endpoint POST: http://localhost:${PORT}/api/tickets`);
