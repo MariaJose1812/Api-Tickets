@@ -4,45 +4,47 @@ const axios = require("axios");
 const sql = require("mssql");
 require("dotenv").config();
 const { enviarConfirmacionTicket, enviarNotificacionSoporte, verificarConexion } = require("./utils/emailService");
+const { getConnection } = require("./config/db");
+const authRoutes = require("./auth/routesr");
+const { auth, soloSoporte } = require("./auth/middleware");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/auth", authRoutes);
 
-//  CONFIGURACIÓN BASE DE DATOS SQL SERVER 
-const dbConfig = {
-  server: process.env.SQL_SERVER || "localhost\\SQLEXPRESS",
-  database: process.env.SQL_DATABASE || "SistemaTickets",
-  authentication: {
-    type: "default",
-    options: {
-      userName: process.env.SQL_USER || "n8n_user",
-      password: process.env.SQL_PASSWORD || "N8nSegura123"
-    }
-  },
-  options: {
-    encrypt: false, 
-    trustServerCertificate: true,
-    enableKeepAlive: true,
-    connectionTimeout: 30000,
-    requestTimeout: 30000,
-    useUTC: true
-  }
-};
 
-// Pool de conexión
 let pool;
 
-async function conectarBD() {
+// ENDPOINT GET: OBTENER DEPARTAMENTOS 
+app.get("/api/departamentos", async (req, res) => {
   try {
-    pool = new sql.ConnectionPool(dbConfig);
-    await pool.connect();
+    const result = await pool.request()
+      .query("SELECT IdDep, NomDep FROM departamentos ORDER BY NomDep");
+    
+    res.json({
+      success: true,
+      total: result.recordset.length,
+      departamentos: result.recordset
+    });
+  } catch (error) {
+    console.error("X Error al obtener departamentos:", error);
+    res.status(500).json({ error: "Error al obtener departamentos" });
+  }
+});
+
+
+
+const port = 3000;
+app.listen(port, async () => {
+  try {
+    pool = await getConnection();
     console.log("✓ Conectado a SQL Server (localhost\\SQLEXPRESS) - Base de datos: SistemaTickets");
   } catch (error) {
     console.error("X Error al conectar a SQL Server:", error);
     console.error("Verifica que SQL Server SQLEXPRESS esté corriendo y la BD SistemaTickets exista.");
   }
-}
+});
 
 //  ENDPOINT POST: CREAR TICKET 
 app.post("/api/tickets", async (req, res) => {
@@ -57,7 +59,7 @@ app.post("/api/tickets", async (req, res) => {
       });
     }
 
-    console.log("📥 Datos recibidos:", { idDep, nombreContacto, correoContacto, descripcionProblema });
+    console.log("Datos recibidos:", { idDep, nombreContacto, correoContacto, descripcionProblema });
 
     // Guardar en SQL Server
     const request = pool.request();
@@ -71,7 +73,7 @@ app.post("/api/tickets", async (req, res) => {
         (IdDep, NombreContacto, CorreoContacto, DescripcionProblema, Estado, FechaCreacion)
         VALUES 
         (@idDep, @nombreContacto, @correoContacto, @descripcionProblema, 'Abierto', GETDATE());
-        SELECT @@IDENTITY as idTicket;
+        SELECT SCOPE_IDENTITY() as idTicket;
       `);
 
     const idTicket = result.recordset[0].idTicket;
@@ -86,7 +88,7 @@ app.post("/api/tickets", async (req, res) => {
       ? deptResult.recordset[0].NomDep 
       : "Sin especificar";
 
-    // ✉️ ENVIAR CORREOS AL USUARIO Y SOPORTE
+    //  ENVIAR CORREOS AL USUARIO Y SOPORTE
     try {
       // Enviar correo al usuario
       await enviarConfirmacionTicket(
@@ -160,6 +162,8 @@ app.post("/api/tickets", async (req, res) => {
   }
 });
 
+app.use("/api", auth);
+
 // ENDPOINT GET: OBTENER TODOS LOS TICKETS 
 app.get("/api/tickets", async (req, res) => {
   try {
@@ -184,18 +188,18 @@ app.get("/api/tickets", async (req, res) => {
 });
 
 // ENDPOINT GET: OBTENER TICKET ESPECÍFICO 
-app.get("/api/tickets/:numeroTicket", async (req, res) => {
+app.get("/api/tickets/:idTicket", async (req, res) => {
   try {
-    const { numeroTicket } = req.params;
+    const { idTicket } = req.params;
     
     const result = await pool.request()
-      .input("numeroTicket", sql.Int, numeroTicket)
+      .input("idTicket", sql.Int, idTicket)
       .query(`
         SELECT t.IdTicket, t.IdDep, d.NomDep, 
                t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, t.Estado, t.FechaCreacion
         FROM tickets t
         INNER JOIN departamentos d ON t.IdDep = d.IdDep
-        WHERE t.NumeroTicket = @numeroTicket
+        WHERE t.IdTicket = @idTicket
       `);
     
     if (result.recordset.length === 0) {
@@ -212,26 +216,52 @@ app.get("/api/tickets/:numeroTicket", async (req, res) => {
   }
 });
 
-// ENDPOINT GET: OBTENER DEPARTAMENTOS 
-app.get("/api/departamentos", async (req, res) => {
+
+
+// ENDPOINT PUT: ACTUALIZAR ESTADO DEL TICKET
+
+app.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
   try {
+    const { idTicket } = req.params;
+    const { nuevoEstado } = req.body;
+
+    if (!nuevoEstado) {
+      return res.status(400).json({ error: "Falta el nuevo estado" });
+    }
+
+    const estadosPermitidos = ["Abierto", "Pendiente", "Terminado"];
+    if (!estadosPermitidos.includes(nuevoEstado)) {
+      return res.status(400).json({ error: "Estado no válido" });
+    }
+
     const result = await pool.request()
-      .query("SELECT IdDep, NomDep FROM departamentos ORDER BY NomDep");
-    
+      .input("idTicket", sql.Int, idTicket)
+      .input("nuevoEstado", sql.VarChar(50), nuevoEstado)
+      .query(`
+        UPDATE tickets
+        SET Estado = @nuevoEstado
+        WHERE IdTicket = @idTicket
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: "Ticket no encontrado" });
+    }
+
     res.json({
       success: true,
-      total: result.recordset.length,
-      departamentos: result.recordset
+      mensaje: `Estado del ticket #${idTicket} actualizado a '${nuevoEstado}'`
     });
+
   } catch (error) {
-    console.error("X Error al obtener departamentos:", error);
-    res.status(500).json({ error: "Error al obtener departamentos" });
+    console.error("X Error al actualizar estado del ticket:", error);
+    res.status(500).json({ error: "Error al actualizar estado del ticket" });
   }
 });
 
+
 // INICIAR SERVIDOR 
 const PORT = 3000;
-conectarBD().then(async () => {
+verificarConexion().then(async () => {
   // Verificar configuración de correo
   await verificarConexion();
   
@@ -241,3 +271,5 @@ conectarBD().then(async () => {
     console.log(`✓ Endpoint GET: http://localhost:${PORT}/api/tickets`);
   });
 });
+
+process.stdin.resume();

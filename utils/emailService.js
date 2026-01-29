@@ -12,12 +12,12 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * 
- * @param {string} correoUsuario - Correo del usuario
- * @param {number} idTicket - ID del ticket
- * @param {string} nombreContacto - Nombre del contacto
- * @param {string} descripcionProblema - Descripción del problema
- * @param {string} nombreDepartamento - Nombre del departamento
+ * Enviar correo de confirmación al usuario
+ * @param {string} correoUsuario 
+ * @param {number} idTicket
+ * @param {string} nombreContacto 
+ * @param {string} descripcionProblema 
+ * @param {string} nombreDepartamento 
  * @returns {Promise}
  */
 async function enviarConfirmacionTicket(correoUsuario, idTicket, nombreContacto, descripcionProblema, nombreDepartamento) {
@@ -81,18 +81,18 @@ async function enviarConfirmacionTicket(correoUsuario, idTicket, nombreContacto,
     console.log(`✓ Correo enviado al usuario (${correoUsuario}):`, info.messageId);
     return info;
   } catch (error) {
-    console.error('✗ Error al enviar correo al usuario:', error);
+    console.error('X Error al enviar correo al usuario:', error);
     throw error;
   }
 }
 
 /**
  * Enviar notificación al correo de soporte
- * @param {number} idTicket - ID del ticket
- * @param {string} nombreContacto - Nombre del contacto
- * @param {string} correoContacto - Correo del contacto
- * @param {string} descripcionProblema - Descripción del problema
- * @param {string} nombreDepartamento - Nombre del departamento
+ * @param {number} idTicket 
+ * @param {string} nombreContacto 
+ * @param {string} correoContacto 
+ * @param {string} descripcionProblema 
+ * @param {string} nombreDepartamento 
  * @returns {Promise}
  */
 async function enviarNotificacionSoporte(idTicket, nombreContacto, correoContacto, descripcionProblema, nombreDepartamento) {
@@ -158,7 +158,7 @@ async function enviarNotificacionSoporte(idTicket, nombreContacto, correoContact
     console.log(`✓ Correo enviado a soporte (${process.env.SUPPORT_EMAIL}):`, info.messageId);
     return info;
   } catch (error) {
-    console.error('✗ Error al enviar correo a soporte:', error);
+    console.error('X Error al enviar correo a soporte:', error);
     throw error;
   }
 }
@@ -173,7 +173,7 @@ async function verificarConexion() {
     console.log('✓ Conexión SMTP verificada correctamente');
     return true;
   } catch (error) {
-    console.error('✗ Error en la conexión SMTP:', error);
+    console.error('X Error en la conexión SMTP:', error);
     return false;
   }
 }
