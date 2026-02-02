@@ -1,6 +1,5 @@
 const sql = require("mssql");
 
-
 const dbConfig = {
   server: process.env.SQL_SERVER || "localhost\\SQLEXPRESS",
   database: process.env.SQL_DATABASE || "SistemaTickets",
@@ -8,17 +7,17 @@ const dbConfig = {
     type: "default",
     options: {
       userName: process.env.SQL_USER || "n8n_user",
-      password: process.env.SQL_PASSWORD || "N8nSegura123"
-    }
+      password: process.env.SQL_PASSWORD || "N8nSegura123",
+    },
   },
   options: {
-    encrypt: false, 
+    encrypt: false,
     trustServerCertificate: true,
     enableKeepAlive: true,
     connectionTimeout: 30000,
     requestTimeout: 30000,
-    useUTC: true
-  }
+    useUTC: true,
+  },
 };
 
 let pool = null;
