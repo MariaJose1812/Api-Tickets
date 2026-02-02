@@ -3,10 +3,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const sql = require("mssql");
 const { getConnection } = require("../config/db"); 
+require("dotenv").config();
 
 const router = express.Router();
 
-/* REGISTRO */
+// REGISTRO 
 router.post("/register", async (req, res) => {
   try {
     const { nombre, correo, password, codigoSoporte } = req.body;
@@ -25,18 +26,43 @@ router.post("/register", async (req, res) => {
 
     // Definir rol 
     let rol = "USUARIO";
-    if (codigoSoporte === process.env.SOPORTE_CODE) rol = "SOPORTE";
+    if (codigoSoporte && codigoSoporte.trim() === process.env.SOPORTE_CODE) {
+        rol = "SOPORTE";
+    }
 
     const hash = await bcrypt.hash(password, 10);
 
-    await pool.request()
+    // Insertar y recuperar el ID generado 
+    const result = await pool.request()
       .input("nombre", sql.VarChar(100), nombre)
       .input("correo", sql.VarChar(100), correo)
       .input("password", sql.VarChar(255), hash)
       .input("rol", sql.VarChar(20), rol)
-      .query("INSERT INTO Usuarios (NomUs, CorUs, PassHash, Rol) VALUES (@nombre, @correo, @password, @rol)");
+      .query(`
+        INSERT INTO Usuarios (NomUs, CorUs, PassHash, Rol) 
+        VALUES (@nombre, @correo, @password, @rol);
+        SELECT SCOPE_IDENTITY() as id; 
+      `);
 
-    res.status(201).json({ success: true, message: "Usuario registrado" });
+    const nuevoId = result.recordset[0].id;
+
+    const token = jwt.sign(
+      { id: nuevoId, rol: rol, correo: correo },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    // Responder con el token y los datos (Igual que el Login)
+    res.status(201).json({ 
+        success: true, 
+        message: "Usuario registrado e identificado",
+        token: token,
+        user: {
+            nombre: nombre,
+            rol: rol,
+            correo: correo
+        }
+    });
 
   } catch (error) {
     console.error(error);
@@ -61,6 +87,8 @@ router.post("/login", async (req, res) => {
 
     if (!valido) return res.status(401).json({ error: "Credenciales inválidas" });
 
+    const rolLimpio = usuario.Rol ? usuario.Rol.trim() : "USUARIO";
+
     const token = jwt.sign(
       { id: usuario.IdUsuario, rol: usuario.Rol, correo: usuario.CorUs },
       process.env.JWT_SECRET,
@@ -73,7 +101,7 @@ router.post("/login", async (req, res) => {
       token,
       user: { 
         nombre: usuario.NomUs,
-        rol: usuario.Rol, 
+        rol: rolLimpio, 
         correo: usuario.CorUs
       }
     });
