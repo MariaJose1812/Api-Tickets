@@ -208,6 +208,29 @@ app.get("/api/tickets", async (req, res) => {
   }
 });
 
+// ENDPOINT GET PARA LLAMAR LOS TICKETS EN EL DASHBOARD
+app.get("/api/tickets", async (req, res) => {
+  try {
+    const query = `
+      SELECT t.IdTicket, d.NomDep, t.NombreContacto, t.CorreoContacto, 
+             t.DescripcionProblema, t.Estado, t.FechaCreacion
+      FROM tickets t
+      INNER JOIN departamentos d ON t.IdDep = d.IdDep
+      ORDER BY t.FechaCreacion DESC
+    `;
+    
+    const result = await pool.request().query(query);
+    
+    res.json({
+      success: true,
+      tickets: result.recordset
+    });
+  } catch (error) {
+    console.error("X Error al obtener tickets:", error);
+    res.status(500).json({ error: "Error al obtener tickets" });
+  }
+});
+
 // ENDPOINT GET: OBTENER TICKET ESPECÍFICO
 app.get("/api/tickets/:idTicket", async (req, res) => {
   try {
