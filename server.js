@@ -131,7 +131,7 @@ app.post("/api/tickets", async (req, res) => {
         "⚠️ Advertencia: Error al enviar correos:",
         emailError.message,
       );
-      // Continuamos sin fallar, ya que el ticket se guardó correctamente
+      
     }
 
     // Enviar a N8N
