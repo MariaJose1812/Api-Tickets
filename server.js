@@ -131,7 +131,7 @@ app.post("/api/tickets", async (req, res) => {
         "⚠️ Advertencia: Error al enviar correos:",
         emailError.message,
       );
-      // Continuamos sin fallar, ya que el ticket se guardó correctamente
+      
     }
 
     // Enviar a N8N
@@ -201,6 +201,29 @@ app.get("/api/tickets", async (req, res) => {
       success: true,
       total: result.recordset.length,
       tickets: result.recordset,
+    });
+  } catch (error) {
+    console.error("X Error al obtener tickets:", error);
+    res.status(500).json({ error: "Error al obtener tickets" });
+  }
+});
+
+// ENDPOINT GET PARA LLAMAR LOS TICKETS EN EL DASHBOARD
+app.get("/api/tickets", async (req, res) => {
+  try {
+    const query = `
+      SELECT t.IdTicket, d.NomDep, t.NombreContacto, t.CorreoContacto, 
+             t.DescripcionProblema, t.Estado, t.FechaCreacion
+      FROM tickets t
+      INNER JOIN departamentos d ON t.IdDep = d.IdDep
+      ORDER BY t.FechaCreacion DESC
+    `;
+    
+    const result = await pool.request().query(query);
+    
+    res.json({
+      success: true,
+      tickets: result.recordset
     });
   } catch (error) {
     console.error("X Error al obtener tickets:", error);
