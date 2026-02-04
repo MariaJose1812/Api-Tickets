@@ -3,11 +3,7 @@ const cors = require("cors");
 const axios = require("axios");
 const sql = require("mssql");
 require("dotenv").config();
-const {
-  enviarConfirmacionTicket,
-  enviarNotificacionSoporte,
-  verificarConexion,
-} = require("./utils/emailService");
+const {enviarConfirmacionTicket, enviarNotificacionSoporte, verificarConexion, } = require("./utils/emailService");
 const { getConnection } = require("./config/db");
 const authRoutes = require("./auth/routesr");
 const { auth, soloSoporte } = require("./auth/middleware");
@@ -300,9 +296,10 @@ app.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
 
 // INICIAR SERVIDOR
 const PORT = 3000;
+
 verificarConexion().then(async () => {
   // Verificar configuración de correo
-  await verificarConexion();
+  await getConnection();
 
   app.listen(PORT, () => {
     console.log("✓ API REST corriendo en http://localhost:" + PORT);
