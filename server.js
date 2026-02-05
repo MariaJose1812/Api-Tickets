@@ -3,7 +3,13 @@ const cors = require("cors");
 const axios = require("axios");
 const sql = require("mssql");
 require("dotenv").config();
-const {enviarConfirmacionTicket, enviarNotificacionSoporte, verificarConexion, } = require("./utils/emailService");
+
+const {
+  enviarConfirmacionTicket,
+  enviarNotificacionSoporte,
+  verificarConexion,
+} = require("./utils/emailService");
+
 const { getConnection } = require("./config/db");
 const authRoutes = require("./auth/routesr");
 const { auth, soloSoporte } = require("./auth/middleware");
@@ -12,10 +18,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/auth", authRoutes);
+app.use("/api", auth);
 
 let pool;
 
-// ENDPOINT GET: OBTENER DEPARTAMENTOS
+/* Departamentos */
 app.get("/api/departamentos", async (req, res) => {
   try {
     const result = await pool
@@ -33,28 +40,12 @@ app.get("/api/departamentos", async (req, res) => {
   }
 });
 
-const port = 3000;
-app.listen(port, async () => {
-  try {
-    pool = await getConnection();
-    console.log(
-      "✓ Conectado a SQL Server (localhost\\SQLEXPRESS) - Base de datos: SistemaTickets",
-    );
-  } catch (error) {
-    console.error("X Error al conectar a SQL Server:", error);
-    console.error(
-      "Verifica que SQL Server SQLEXPRESS esté corriendo y la BD SistemaTickets exista.",
-    );
-  }
-});
-
-//  ENDPOINT POST: CREAR TICKET
+/* Crear Tickets */
 app.post("/api/tickets", async (req, res) => {
   try {
     const { idDep, nombreContacto, correoContacto, descripcionProblema } =
       req.body;
 
-    // Validar datos
     if (!idDep || !nombreContacto || !correoContacto || !descripcionProblema) {
       return res.status(400).json({
         error: "Datos incompletos",
@@ -67,14 +58,6 @@ app.post("/api/tickets", async (req, res) => {
       });
     }
 
-    console.log("Datos recibidos:", {
-      idDep,
-      nombreContacto,
-      correoContacto,
-      descripcionProblema,
-    });
-
-    // Guardar en SQL Server
     const request = pool.request();
     const result = await request
       .input("idDep", sql.Int, idDep)
@@ -90,52 +73,44 @@ app.post("/api/tickets", async (req, res) => {
       `);
 
     const idTicket = result.recordset[0].idTicket;
-    console.log("✓ Ticket #" + idTicket + " guardado en BD");
 
-    // Obtener nombre del departamento
     const deptResult = await pool
       .request()
       .input("idDep", sql.Int, idDep)
       .query("SELECT NomDep FROM departamentos WHERE IdDep = @idDep");
 
-    const nombroDepartamento =
+    const nombreDepartamento =
       deptResult.recordset.length > 0
         ? deptResult.recordset[0].NomDep
         : "Sin especificar";
 
-    //  ENVIAR CORREOS AL USUARIO Y SOPORTE
+    // Correos 
     try {
-      // Enviar correo al usuario
       await enviarConfirmacionTicket(
         correoContacto,
         idTicket,
         nombreContacto,
         descripcionProblema,
-        nombroDepartamento,
+        nombreDepartamento
       );
 
-      // Enviar correo al equipo de soporte
       await enviarNotificacionSoporte(
         idTicket,
         nombreContacto,
         correoContacto,
         descripcionProblema,
-        nombroDepartamento,
+        nombreDepartamento
       );
     } catch (emailError) {
-      console.warn(
-        "⚠️ Advertencia: Error al enviar correos:",
-        emailError.message,
-      );
-      
+      console.warn("⚠️ Error al enviar correos:", emailError.message);
     }
 
-    // Enviar a N8N
+    // N8N 
     try {
       const n8nPayload = {
         idTicket,
         idDep,
-        nombreDepartamento: nombroDepartamento,
+        nombreDepartamento,
         nombreContacto,
         correoContacto,
         descripcionProblema,
@@ -143,27 +118,20 @@ app.post("/api/tickets", async (req, res) => {
         fechaCreacion: new Date().toISOString(),
       };
 
-      console.log("Enviando a N8N:", n8nPayload);
-
       await axios.post("http://localhost:5678/webhook/tickets", n8nPayload, {
         timeout: 5000,
       });
-      console.log("✓ Ticket #" + idTicket + " enviado a N8N");
     } catch (n8nError) {
-      console.warn(
-        "N8N no disponible o timeout, pero ticket guardado en BD:",
-        n8nError.message,
-      );
+      console.warn("⚠️ N8N no disponible:", n8nError.message);
     }
 
-    // Respuesta exitosa
     res.status(201).json({
       success: true,
       mensaje: "Ticket creado exitosamente",
       ticket: {
         idTicket,
         idDep,
-        nombreDepartamento: nombroDepartamento,
+        nombreDepartamento,
         nombreContacto,
         correoContacto,
         descripcionProblema,
@@ -180,18 +148,17 @@ app.post("/api/tickets", async (req, res) => {
   }
 });
 
-app.use("/api", auth);
-
-// ENDPOINT GET: OBTENER TODOS LOS TICKETS
+/* Get Todos los Tickets */
 app.get("/api/tickets", async (req, res) => {
   try {
     const result = await pool.request().query(`
-        SELECT t.IdTicket, t.IdDep, d.NomDep, 
-               t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, t.Estado, t.FechaCreacion
-        FROM tickets t
-        INNER JOIN departamentos d ON t.IdDep = d.IdDep
-        ORDER BY t.FechaCreacion DESC
-      `);
+      SELECT t.IdTicket, t.IdDep, d.NomDep, 
+             t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, 
+             t.Estado, t.FechaCreacion
+      FROM tickets t
+      INNER JOIN departamentos d ON t.IdDep = d.IdDep
+      ORDER BY t.FechaCreacion DESC
+    `);
 
     res.json({
       success: true,
@@ -204,38 +171,18 @@ app.get("/api/tickets", async (req, res) => {
   }
 });
 
-// ENDPOINT GET PARA LLAMAR LOS TICKETS EN EL DASHBOARD
-app.get("/api/tickets", async (req, res) => {
-  try {
-    const query = `
-      SELECT t.IdTicket, d.NomDep, t.NombreContacto, t.CorreoContacto, 
-             t.DescripcionProblema, t.Estado, t.FechaCreacion
-      FROM tickets t
-      INNER JOIN departamentos d ON t.IdDep = d.IdDep
-      ORDER BY t.FechaCreacion DESC
-    `;
-    
-    const result = await pool.request().query(query);
-    
-    res.json({
-      success: true,
-      tickets: result.recordset
-    });
-  } catch (error) {
-    console.error("X Error al obtener tickets:", error);
-    res.status(500).json({ error: "Error al obtener tickets" });
-  }
-});
-
-// ENDPOINT GET: OBTENER TICKET ESPECÍFICO
+/* Ticket por ID */
 app.get("/api/tickets/:idTicket", async (req, res) => {
   try {
     const { idTicket } = req.params;
 
-    const result = await pool.request().input("idTicket", sql.Int, idTicket)
+    const result = await pool
+      .request()
+      .input("idTicket", sql.Int, idTicket)
       .query(`
         SELECT t.IdTicket, t.IdDep, d.NomDep, 
-               t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, t.Estado, t.FechaCreacion
+               t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, 
+               t.Estado, t.FechaCreacion
         FROM tickets t
         INNER JOIN departamentos d ON t.IdDep = d.IdDep
         WHERE t.IdTicket = @idTicket
@@ -255,31 +202,35 @@ app.get("/api/tickets/:idTicket", async (req, res) => {
   }
 });
 
-// ENDPOINT PUT: ACTUALIZAR ESTADO DEL TICKET
-
+/* Actualiza estado */
 app.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
   try {
     const { idTicket } = req.params;
-    const { nuevoEstado } = req.body;
+    const nuevoEstado = req.body.nuevoEstado || req.body.Estado;
 
     if (!nuevoEstado) {
       return res.status(400).json({ error: "Falta el nuevo estado" });
     }
 
-    const estadosPermitidos = ["Abierto", "Pendiente", "Terminado"];
-    if (!estadosPermitidos.includes(nuevoEstado)) {
-      return res.status(400).json({ error: "Estado no válido" });
-    }
+    const estadosPermitidos = ["Abierto", "En Proceso", "Terminado"];
+if (!estadosPermitidos.includes(nuevoEstado)) {
+  return res.status(400).json({
+    error: "Estado no válido",
+    recibido: raw,
+    recibidoNormalizado: nuevoEstado,
+    permitidos: estadosPermitidos,
+  });
+}
 
     const result = await pool
       .request()
       .input("idTicket", sql.Int, idTicket)
-      .input("nuevoEstado", sql.VarChar(50), nuevoEstado).query(`
-        UPDATE tickets
-        SET Estado = @nuevoEstado
-        WHERE IdTicket = @idTicket
-      `);
-
+      .input("nuevoEstado", sql.VarChar(50), nuevoEstado)
+      .query(`
+  UPDATE tickets
+  SET Estado = LTRIM(RTRIM(@nuevoEstado))
+  WHERE IdTicket = @idTicket
+`);
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: "Ticket no encontrado" });
     }
@@ -294,20 +245,23 @@ app.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
   }
 });
 
-// INICIAR SERVIDOR
+
 const PORT = 3000;
 
-verificarConexion().then(async () => {
-  // Verificar configuración de correo
-  await getConnection();
-
-  app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  try {
+    pool = await getConnection();
+    console.log("✓ Conectado a SQL Server - BD: SistemaTickets");
     console.log("✓ API REST corriendo en http://localhost:" + PORT);
-    console.log("✓ Endpoint POST: http://localhost:" + PORT + "/api/tickets");
-    console.log("✓ Endpoint GET: http://localhost:" + PORT + "/api/tickets");
-  });
+
+    // Verificación de correo 
+    verificarConexion().catch((e) =>
+      console.warn("⚠️ Verificación de correo falló:", e.message)
+    );
+  } catch (error) {
+    console.error("X Error al conectar a SQL Server:", error);
+    console.error(
+      "Verifica que SQL Server SQLEXPRESS esté corriendo y la BD exista."
+    );
+  }
 });
-
-process.stdin.resume();
-
-
