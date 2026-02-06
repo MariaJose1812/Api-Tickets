@@ -99,15 +99,36 @@ router.post("/tickets", async (req, res) => {
 });
 
 // Obtener todos los tickets
+// Obtener todos los tickets (con nombre de departamento)
 router.get("/tickets", async (req, res) => {
-    try {
-        const pool = await getConnection();
-        const result = await pool.request().query("SELECT * FROM tickets ORDER BY FechaCreacion DESC");
-        res.json({ success: true, tickets: result.recordset });
-    } catch (error) {
-        res.status(500).json({ error: "Error al obtener tickets" });
-    }
+  try {
+    const pool = await getConnection();
+    const result = await pool.request().query(`
+      SELECT
+        t.IdTicket,
+        t.IdDep,
+        d.NomDep,
+        t.NombreContacto,
+        t.CorreoContacto,
+        t.DescripcionProblema,
+        t.Estado,
+        t.FechaCreacion
+      FROM tickets t
+      INNER JOIN departamentos d ON d.IdDep = t.IdDep
+      ORDER BY t.FechaCreacion DESC
+    `);
+
+    return res.json({ success: true, tickets: result.recordset });
+  } catch (error) {
+    console.error("ERROR GET /api/admin/tickets:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Error al obtener tickets",
+      detalle: error.message,
+    });
+  }
 });
+
 
 // Actualizar Estado (Solo Soporte)
 router.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
