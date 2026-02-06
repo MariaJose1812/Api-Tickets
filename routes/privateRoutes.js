@@ -131,7 +131,8 @@ router.get("/tickets", async (req, res) => {
 
 
 // Actualizar Estado (Solo Soporte)
-router.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
+// ✅ Actualizar estado (ruta correcta dentro de /api/admin)
+router.put("/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
   try {
     const { idTicket } = req.params;
     const nuevoEstado = req.body.nuevoEstado || req.body.Estado;
@@ -141,36 +142,36 @@ router.put("/api/tickets/:idTicket/estado", soloSoporte, async (req, res) => {
     }
 
     const estadosPermitidos = ["Abierto", "En Proceso", "Terminado"];
-if (!estadosPermitidos.includes(nuevoEstado)) {
-  return res.status(400).json({
-    error: "Estado no válido",
-    recibido: raw,
-    recibidoNormalizado: nuevoEstado,
-    permitidos: estadosPermitidos,
-  });
-}
+    if (!estadosPermitidos.includes(nuevoEstado)) {
+      return res.status(400).json({
+        error: "Estado no válido",
+        recibido: nuevoEstado,
+        permitidos: estadosPermitidos,
+      });
+    }
+
+    const pool = await getConnection();
 
     const result = await pool
       .request()
-      .input("idTicket", sql.Int, idTicket)
+      .input("idTicket", sql.Int, Number(idTicket))
       .input("nuevoEstado", sql.VarChar(50), nuevoEstado)
       .query(`
-  UPDATE tickets
-  SET Estado = LTRIM(RTRIM(@nuevoEstado))
-  WHERE IdTicket = @idTicket
-`);
+        UPDATE tickets
+        SET Estado = LTRIM(RTRIM(@nuevoEstado))
+        WHERE IdTicket = @idTicket
+      `);
+
     if (result.rowsAffected[0] === 0) {
       return res.status(404).json({ error: "Ticket no encontrado" });
     }
 
-    res.json({
-      success: true,
-      mensaje: `Estado del ticket #${idTicket} actualizado a '${nuevoEstado}'`,
-    });
+    return res.json({ success: true, mensaje: "Estado actualizado" });
   } catch (error) {
-    console.error("X Error al actualizar estado del ticket:", error);
-    res.status(500).json({ error: "Error al actualizar estado del ticket" });
+    console.error(" Error PUT estado:", error);
+    return res.status(500).json({ error: "Error al actualizar estado", detalle: error.message });
   }
 });
+
 
 module.exports = router;
