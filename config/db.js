@@ -16,7 +16,7 @@ const dbConfig = {
     enableKeepAlive: true,
     connectionTimeout: 30000,
     requestTimeout: 30000,
-    useUTC: true,
+    useUTC: false,
   },
 };
 

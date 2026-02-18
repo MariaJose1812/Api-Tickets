@@ -30,4 +30,5 @@ app.listen(PORT, () => {
     console.log(`✓ Servidor en puerto ${PORT}`);
 });
 
-
+process.on('uncaughtException', (err) => console.error('Se evitó un cierre del servidor (Exception):', err));
+process.on('unhandledRejection', (reason) => console.error('Promesa no manejada (Rejection):', reason));
