@@ -1,5 +1,3 @@
-// privateRoutes.js (versión corregida para tu SQL nuevo)
-
 const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
@@ -11,23 +9,21 @@ const {
   enviarNotificacionSoporte,
 } = require("../utils/emailService");
 
-// =====================
-// HISTORIAL (NUEVO SQL)
-// =====================
-// Ruta final esperada (si montas con app.use("/api/admin", router)):
+
 // GET /api/admin/tickets/historial
 router.get("/tickets/historial", soloSoporte, async (req, res) => {
   try {
     const pool = await getConnection();
     const result = await pool.request().query(`
-      SELECT TOP 200
-        IdHistorial,
-        IdTicket,
-        Estado,
-        IdUsuario,
-        FecCreacion
-      FROM dbo.TicketHistorial
-      ORDER BY FecCreacion DESC
+      SELECT 
+    h.IdHistorial,
+    h.IdTicket, 
+    h.Estado, 
+    h.FecCreacion, 
+    u.NomUs AS NombreUsuario 
+    FROM TicketHistorial h
+    INNER JOIN Usuarios u ON h.IdUsuario = u.IdUsuario
+    ORDER BY h.FecCreacion DESC
     `);
 
     return res.json({ success: true, historial: result.recordset || [] });
@@ -41,10 +37,7 @@ router.get("/tickets/historial", soloSoporte, async (req, res) => {
   }
 });
 
-// =====================
-// OBTENER TICKETS
-// =====================
-// Ruta final esperada:
+
 // GET /api/admin/tickets
 router.get("/tickets", soloSoporte, async (req, res) => {
   try {
@@ -75,10 +68,7 @@ router.get("/tickets", soloSoporte, async (req, res) => {
   }
 });
 
-// =====================
-// ACTUALIZAR ESTADO + HISTORIAL (IdUsuario NOT NULL)
-// =====================
-// Ruta final esperada:
+
 // PUT /api/admin/tickets/:id/estado
 router.put("/tickets/:id/estado", auth, soloSoporte, async (req, res) => {
   const { id } = req.params;
@@ -139,10 +129,7 @@ router.put("/tickets/:id/estado", auth, soloSoporte, async (req, res) => {
   }
 });
 
-// =====================
-// CREAR TICKET (sin cambios funcionales)
-// =====================
-// Ruta final esperada:
+
 // POST /api/admin/tickets
 router.post("/tickets", async (req, res) => {
   try {

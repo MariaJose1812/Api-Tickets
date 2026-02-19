@@ -32,7 +32,7 @@ router.get("/tickets/:idTicket", async (req, res) => {
       .query(`
         SELECT t.IdTicket, t.IdDep, d.NomDep, 
                t.NombreContacto, t.CorreoContacto, t.DescripcionProblema, 
-               t.Estado, t.FechaCreacion
+               t.Estado, t.FecCreacion
         FROM tickets t
         INNER JOIN departamentos d ON t.IdDep = d.IdDep
         WHERE t.IdTicket = @idTicket

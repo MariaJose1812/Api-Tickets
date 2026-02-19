@@ -34,17 +34,18 @@ router.post("/register", async (req, res) => {
 
     // Insertar y recuperar el ID generado 
     const result = await pool.request()
-      .input("nombre", sql.VarChar(100), nombre)
-      .input("correo", sql.VarChar(100), correo)
-      .input("password", sql.VarChar(255), hash)
-      .input("rol", sql.VarChar(20), rol)
-      .query(`
-        INSERT INTO Usuarios (NomUs, CorUs, PassHash, Rol) 
-        VALUES (@nombre, @correo, @password, @rol);
-        SELECT SCOPE_IDENTITY() as id; 
-      `);
+  .input("nombre", sql.VarChar(100), nombre)
+  .input("correo", sql.VarChar(100), correo)
+  .input("password", sql.VarChar(255), hash)
+  .input("rol", sql.VarChar(20), rol)
+  .query(`
+    INSERT INTO Usuarios (NomUs, CorUs, PassHash, Rol)
+    OUTPUT INSERTED.IdUsuario
+    VALUES (@nombre, @correo, @password, @rol);
+  `);
 
-    const nuevoId = result.recordset[0].id;
+const nuevoId = result.recordset[0].IdUsuario;
+
 
     const token = jwt.sign(
       { id: nuevoId, rol: rol, correo: correo },
