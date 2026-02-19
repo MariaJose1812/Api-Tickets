@@ -1,6 +1,9 @@
 const express = require("express");
+const favicon = require('serve-favicon');
+const path = require('path');
 const cors = require("cors");
 require("dotenv").config();
+
 
 const authRoutes = require("./auth/routesr");
 const publicRoutes = require("./routes/publicRoutes");
@@ -11,6 +14,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+// Suponiendo que tu icono está en la carpeta 'public/img'
+app.use(favicon(path.join(__dirname, 'img', 'iconoIT.png')));
 
 let pool;
 exports.pool = pool;

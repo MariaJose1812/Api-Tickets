@@ -9,7 +9,6 @@ const {
   enviarNotificacionSoporte,
 } = require("../utils/emailService");
 
-
 // GET /api/admin/tickets/historial
 router.get("/tickets/historial", soloSoporte, async (req, res) => {
   try {
@@ -36,7 +35,6 @@ router.get("/tickets/historial", soloSoporte, async (req, res) => {
     });
   }
 });
-
 
 // GET /api/admin/tickets
 router.get("/tickets", soloSoporte, async (req, res) => {
@@ -67,7 +65,6 @@ router.get("/tickets", soloSoporte, async (req, res) => {
     });
   }
 });
-
 
 // PUT /api/admin/tickets/:id/estado
 router.put("/tickets/:id/estado", auth, soloSoporte, async (req, res) => {
@@ -128,7 +125,6 @@ router.put("/tickets/:id/estado", auth, soloSoporte, async (req, res) => {
     });
   }
 });
-
 
 // POST /api/admin/tickets
 router.post("/tickets", async (req, res) => {
